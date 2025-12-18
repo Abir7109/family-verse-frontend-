@@ -3,13 +3,15 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev --webpack --disable-source-maps",
     "build": "next build",
     "start": "next start",
     "lint": "eslint"
   },
   "dependencies": {
+    "framer-motion": "^12.23.26",
     "next": "16.0.10",
+    "next-themes": "^0.4.6",
     "react": "19.2.1",
     "react-dom": "19.2.1"
   },
