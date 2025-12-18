@@ -1,4 +1,5 @@
 import Link from "next/link";
+import WallPreviewFeed from "@/components/home/wall-preview-feed";
 
 export default function WallPreview() {
   return (
@@ -25,21 +26,17 @@ export default function WallPreview() {
 
         <div className="glass-card relative overflow-hidden rounded-3xl p-6">
           <div className="pointer-events-none absolute -bottom-20 -left-16 h-64 w-64 rounded-full bg-[color:var(--accent)]/18 blur-3xl" />
-          <p className="text-xs tracking-[0.25em] text-[color:var(--muted)]">
-            PREVIEW
-          </p>
+          <div className="flex items-end justify-between gap-4">
+            <p className="text-xs tracking-[0.25em] text-[color:var(--muted)]">
+              PREVIEW
+            </p>
+            <Link href="/wall" className="text-xs tracking-[0.25em] text-[color:var(--muted)] hover:text-[color:var(--text)]">
+              OPEN
+            </Link>
+          </div>
 
-          <div className="mt-4 grid gap-3">
-            {Array.from({ length: 3 }).map((_, i) => (
-              <div
-                key={i}
-                className="rounded-3xl border border-white/30 bg-white/35 p-4 text-sm text-[color:var(--muted)] dark:bg-white/8"
-              >
-                <div className="h-3 w-24 rounded bg-black/10 dark:bg-white/10" />
-                <div className="mt-3 h-3 w-full rounded bg-black/10 dark:bg-white/10" />
-                <div className="mt-2 h-3 w-5/6 rounded bg-black/10 dark:bg-white/10" />
-              </div>
-            ))}
+          <div className="mt-4">
+            <WallPreviewFeed limit={3} />
           </div>
         </div>
       </div>

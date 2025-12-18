@@ -1,6 +1,9 @@
 import Link from "next/link";
+import { familyData } from "@/data/family";
 
 export default function TreePreview() {
+  const members = familyData.members.slice(0, 6);
+
   return (
     <section className="mx-auto max-w-6xl px-6 py-12">
       <div className="glass-card relative overflow-hidden rounded-3xl p-6">
@@ -22,26 +25,44 @@ export default function TreePreview() {
               <Link href="/tree" className="btn-primary">
                 Open Family Tree
               </Link>
-              <Link href="/" className="btn-secondary">
-                Learn more
+              <Link href="/profiles" className="btn-secondary">
+                Browse profiles
               </Link>
             </div>
           </div>
 
           <div className="rounded-3xl border border-white/30 bg-white/35 p-5 dark:bg-white/8">
-            <p className="text-xs tracking-[0.25em] text-[color:var(--muted)]">
-              PREVIEW
-            </p>
-            <div className="mt-4 grid grid-cols-3 gap-3">
-              {Array.from({ length: 6 }).map((_, i) => (
-                <div
-                  key={i}
-                  className="h-10 rounded-2xl border border-black/10 bg-white/55 dark:border-white/10 dark:bg-white/10"
-                />
+            <div className="flex items-end justify-between gap-4">
+              <p className="text-xs tracking-[0.25em] text-[color:var(--muted)]">
+                PREVIEW
+              </p>
+              <div className="text-xs text-[color:var(--muted)]">
+                {familyData.members.length} members
+              </div>
+            </div>
+
+            <div className="mt-4 grid gap-2">
+              {members.map((m) => (
+                <Link
+                  key={m.id}
+                  href={`/profiles/${m.id}`}
+                  className="rounded-2xl border border-black/10 bg-white/55 px-4 py-3 text-sm text-[color:var(--text)] transition-colors hover:bg-white/70 dark:border-white/10 dark:bg-white/10 dark:hover:bg-white/15"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="truncate font-semibold">{m.fullName}</p>
+                      <p className="mt-1 text-xs text-[color:var(--muted)]">{m.role}</p>
+                    </div>
+                    <span className="text-xs tracking-[0.25em] text-[color:var(--muted)]">
+                      VIEW
+                    </span>
+                  </div>
+                </Link>
               ))}
             </div>
+
             <p className="mt-4 text-sm text-[color:var(--muted)]">
-              Interactive tree canvas with hover highlights.
+              Tap a member to open their profile, or open the full interactive tree.
             </p>
           </div>
         </div>
