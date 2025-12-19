@@ -87,16 +87,13 @@ export default function Navbar() {
             Menu
           </button>
 
-          <Link href="/login" className="btn-primary">
-            Family Login
-          </Link>
         </div>
 
         {/* Mobile nav dropdown */}
         {menuOpen ? (
           <nav
             id="mobile-nav"
-            className="absolute left-0 right-0 top-full mt-3 rounded-3xl border border-white/30 bg-[color:var(--panel)]/95 p-2 backdrop-blur-xl shadow-[0_18px_55px_rgba(0,0,0,0.14)] md:hidden"
+            className="absolute left-0 right-0 top-full mt-3 rounded-3xl border border-white/30 bg-[color:var(--panel-solid)] p-2 shadow-[0_18px_55px_rgba(0,0,0,0.18)] md:hidden"
           >
             <div className="grid gap-1">
               {nav.map((item) => {
