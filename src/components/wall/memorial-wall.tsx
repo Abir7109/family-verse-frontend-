@@ -13,7 +13,7 @@ import {
   listWallEntries,
   uploadWallImage,
 } from "@/lib/api-client";
-import { uploadToCloudinary } from "@/lib/cloudinary";
+import { cloudinaryConfig, uploadToCloudinary } from "@/lib/cloudinary";
 
 const MAX_IMAGES = 3;
 
@@ -96,8 +96,15 @@ export default function MemorialWall() {
         results.push(await uploadWallImage(p.file));
       }
       return results;
-    } catch {
-      // Optional local fallback: unsigned preset (useful for local dev only)
+    } catch (e: unknown) {
+      // Only fallback to unsigned uploads if the preset is explicitly configured.
+      // In production, we want failures to surface clearly (usually CORS or API base URL misconfig).
+      const cfg = cloudinaryConfig();
+      if (!cfg) {
+        const msg = e instanceof Error ? e.message : "Upload failed";
+        throw new Error(msg);
+      }
+
       const results: WallImage[] = [];
       for (const p of pendingFiles) {
         results.push(await uploadToCloudinary(p.file));
