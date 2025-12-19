@@ -1,41 +1,39 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-
-type WallEntry = {
-  id: string;
-  author: string;
-  message: string;
-  createdAt: string;
-  flowers: number;
-};
-
-const STORAGE_KEY = "familyverse_memorial_wall_v1";
-
-function loadEntries(): WallEntry[] {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw) as WallEntry[];
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
-}
+import {
+  WALL_CHANGED_EVENT,
+  WALL_STORAGE_KEY,
+  type WallEntry,
+  listWallEntries,
+} from "@/lib/api-client";
 
 export default function WallPreviewFeed({ limit = 3 }: { limit?: number }) {
   const [entries, setEntries] = useState<WallEntry[]>([]);
 
   useEffect(() => {
-    setEntries(loadEntries());
+    let cancelled = false;
 
-    // Keep preview in sync when user posts a new entry (same-tab).
-    const onStorage = (e: StorageEvent) => {
-      if (e.key === STORAGE_KEY) setEntries(loadEntries());
+    const refresh = async () => {
+      const next = await listWallEntries(Math.max(3, limit)).catch(() => []);
+      if (!cancelled) setEntries(next);
     };
+
+    void refresh();
+
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === WALL_STORAGE_KEY) void refresh();
+    };
+    const onWallChanged = () => void refresh();
+
     window.addEventListener("storage", onStorage);
-    return () => window.removeEventListener("storage", onStorage);
-  }, []);
+    window.addEventListener(WALL_CHANGED_EVENT, onWallChanged);
+    return () => {
+      cancelled = true;
+      window.removeEventListener("storage", onStorage);
+      window.removeEventListener(WALL_CHANGED_EVENT, onWallChanged);
+    };
+  }, [limit]);
 
   const recent = useMemo(() => {
     return [...entries]
@@ -54,7 +52,10 @@ export default function WallPreviewFeed({ limit = 3 }: { limit?: number }) {
   return (
     <div className="grid gap-3">
       {recent.map((e) => (
-        <div key={e.id} className="rounded-3xl border border-white/30 bg-white/35 p-4 dark:bg-white/8">
+        <div
+          key={e.id}
+          className="rounded-3xl border border-white/30 bg-white/35 p-4 dark:bg-white/8"
+        >
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
               <p className="truncate text-sm font-semibold text-[color:var(--text)]">

@@ -12,6 +12,9 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+
+    // Monorepo backend: linted separately (and dist contains CJS output).
+    "backend/**",
   ]),
 
   // This codebase uses `useEffect` + `setState` for client-only hydration and

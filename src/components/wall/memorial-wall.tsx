@@ -1,79 +1,141 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+/* eslint-disable @next/next/no-img-element */
+
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useMounted } from "@/lib/use-mounted";
 import { AnimatePresence, motion } from "framer-motion";
+import {
+  type WallEntry,
+  type WallImage,
+  createWallEntry,
+  flowerWallEntry,
+  listWallEntries,
+  uploadWallImage,
+} from "@/lib/api-client";
+import { uploadToCloudinary } from "@/lib/cloudinary";
 
-type WallEntry = {
-  id: string;
-  author: string;
-  message: string;
-  createdAt: string;
-  flowers: number;
+const MAX_IMAGES = 3;
+
+type PendingFile = {
+  file: File;
+  previewUrl: string;
 };
-
-const STORAGE_KEY = "familyverse_memorial_wall_v1";
-
-function uid() {
-  return Math.random().toString(16).slice(2) + Date.now().toString(16);
-}
-
-function loadEntries(): WallEntry[] {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw) as WallEntry[];
-    if (!Array.isArray(parsed)) return [];
-    return parsed;
-  } catch {
-    return [];
-  }
-}
-
-function saveEntries(entries: WallEntry[]) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
-}
 
 export default function MemorialWall() {
   const mounted = useMounted();
   const [entries, setEntries] = useState<WallEntry[]>([]);
   const [author, setAuthor] = useState("");
   const [message, setMessage] = useState("");
+  const [pendingFiles, setPendingFiles] = useState<PendingFile[]>([]);
+  const pendingFilesRef = useRef<PendingFile[]>([]);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!mounted) return;
-    setEntries(loadEntries());
+
+    let cancelled = false;
+    (async () => {
+      const loaded = await listWallEntries(50).catch(() => []);
+      if (!cancelled) setEntries(loaded);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
   }, [mounted]);
+
+  useEffect(() => {
+    pendingFilesRef.current = pendingFiles;
+  }, [pendingFiles]);
+
+  useEffect(() => {
+    return () => {
+      // cleanup previews on unmount
+      pendingFilesRef.current.forEach((p) => URL.revokeObjectURL(p.previewUrl));
+    };
+  }, []);
 
   const sorted = useMemo(() => {
     return [...entries].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   }, [entries]);
 
-  const addEntry = () => {
+  const onPickFiles = (files: FileList | null) => {
+    if (!files) return;
+
+    setError(null);
+
+    const existing = pendingFiles.length;
+    const remaining = Math.max(0, MAX_IMAGES - existing);
+
+    const picked = Array.from(files)
+      .filter((f) => f.type.startsWith("image/"))
+      .slice(0, remaining)
+      .map((file) => ({ file, previewUrl: URL.createObjectURL(file) }));
+
+    setPendingFiles((prev) => [...prev, ...picked]);
+  };
+
+  const removePendingFile = (idx: number) => {
+    setPendingFiles((prev) => {
+      const next = [...prev];
+      const removed = next.splice(idx, 1)[0];
+      if (removed) URL.revokeObjectURL(removed.previewUrl);
+      return next;
+    });
+  };
+
+  const uploadImages = async (): Promise<WallImage[]> => {
+    if (pendingFiles.length === 0) return [];
+
+    // Preferred: backend-controlled Cloudinary uploads.
+    try {
+      const results: WallImage[] = [];
+      for (const p of pendingFiles) {
+        results.push(await uploadWallImage(p.file));
+      }
+      return results;
+    } catch {
+      // Optional local fallback: unsigned preset (useful for local dev only)
+      const results: WallImage[] = [];
+      for (const p of pendingFiles) {
+        results.push(await uploadToCloudinary(p.file));
+      }
+      return results;
+    }
+  };
+
+  const addEntry = async () => {
     const a = author.trim() || "Anonymous";
     const m = message.trim();
     if (m.length < 2) return;
 
-    const next: WallEntry = {
-      id: uid(),
-      author: a,
-      message: m,
-      createdAt: new Date().toISOString(),
-      flowers: 0,
-    };
+    setSubmitting(true);
+    setError(null);
 
-    const newEntries = [next, ...entries];
-    setEntries(newEntries);
-    saveEntries(newEntries);
-    setMessage("");
+    try {
+      const images = await uploadImages();
+      const created = await createWallEntry({ author: a, message: m, images });
+
+      setEntries((prev) => [created, ...prev]);
+      setMessage("");
+
+      // reset pending files
+      pendingFiles.forEach((p) => URL.revokeObjectURL(p.previewUrl));
+      setPendingFiles([]);
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Failed to post";
+      setError(msg);
+    } finally {
+      setSubmitting(false);
+    }
   };
 
-  const flower = (id: string) => {
-    const newEntries = entries.map((e) =>
-      e.id === id ? { ...e, flowers: e.flowers + 1 } : e,
-    );
-    setEntries(newEntries);
-    saveEntries(newEntries);
+  const flower = async (id: string) => {
+    const updated = await flowerWallEntry(id);
+    if (!updated) return;
+    setEntries((prev) => prev.map((e) => (e.id === id ? updated : e)));
   };
 
   if (!mounted) {
@@ -87,13 +149,10 @@ export default function MemorialWall() {
   return (
     <div className="grid gap-6 lg:grid-cols-[380px_1fr]">
       <section className="glass-card rounded-3xl p-5">
-        <p className="text-xs tracking-[0.25em] text-[color:var(--muted)]">
-          WRITE
-        </p>
+        <p className="text-xs tracking-[0.25em] text-[color:var(--muted)]">WRITE</p>
         <h2 className="mt-2 font-lux-serif text-2xl">Leave a tribute</h2>
         <p className="mt-2 text-sm leading-6 text-[color:var(--muted)]">
-          Share a memory, a wish, or a message of love. This is stored on your
-          device for now (we can add secure family accounts later).
+          Share a memory, a wish, or a message of love.
         </p>
 
         <div className="mt-5 grid gap-3">
@@ -112,8 +171,59 @@ export default function MemorialWall() {
             className="w-full resize-none rounded-2xl border border-black/10 bg-white/55 px-4 py-3 text-sm text-[color:var(--text)] outline-none placeholder:text-[color:var(--muted)] focus:ring-2 focus:ring-[color:var(--accent)]/40 dark:border-white/10 dark:bg-white/10"
           />
 
-          <button className="btn-primary" onClick={addEntry}>
-            Post to Memorial Wall
+          <div>
+            <div className="flex items-center justify-between gap-3">
+              <label className="text-sm font-semibold text-[color:var(--text)]">
+                Photos (up to {MAX_IMAGES})
+              </label>
+              <span className="text-xs text-[color:var(--muted)]">
+                {pendingFiles.length}/{MAX_IMAGES}
+              </span>
+            </div>
+
+            <input
+              type="file"
+              accept="image/*"
+              multiple
+              onChange={(e) => onPickFiles(e.target.files)}
+              className="mt-2 block w-full text-sm text-[color:var(--muted)] file:mr-4 file:rounded-full file:border-0 file:bg-white/60 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-[color:var(--text)] hover:file:bg-white/75 dark:file:bg-white/10 dark:hover:file:bg-white/15"
+              disabled={pendingFiles.length >= MAX_IMAGES || submitting}
+            />
+
+            {pendingFiles.length > 0 ? (
+              <div className="mt-3 grid grid-cols-3 gap-2">
+                {pendingFiles.map((p, idx) => (
+                  <div
+                    key={p.previewUrl}
+                    className="relative overflow-hidden rounded-2xl border border-black/10 dark:border-white/10"
+                  >
+                    <img
+                      src={p.previewUrl}
+                      alt="Selected"
+                      className="h-20 w-full object-cover"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => removePendingFile(idx)}
+                      className="absolute right-1 top-1 rounded-full bg-black/60 px-2 py-1 text-xs font-semibold text-white"
+                      aria-label="Remove photo"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+          </div>
+
+          {error ? (
+            <div className="rounded-2xl border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-700 dark:text-red-300">
+              {error}
+            </div>
+          ) : null}
+
+          <button className="btn-primary" onClick={addEntry} disabled={submitting}>
+            {submitting ? "Posting…" : "Post to Memorial Wall"}
           </button>
         </div>
 
@@ -126,12 +236,8 @@ export default function MemorialWall() {
       <section>
         <div className="flex items-end justify-between gap-4">
           <div>
-            <p className="text-xs tracking-[0.25em] text-[color:var(--muted)]">
-              WALL
-            </p>
-            <h2 className="mt-2 font-lux-serif text-2xl">
-              Memories from the heart
-            </h2>
+            <p className="text-xs tracking-[0.25em] text-[color:var(--muted)]">WALL</p>
+            <h2 className="mt-2 font-lux-serif text-2xl">Memories from the heart</h2>
           </div>
           <div className="hidden text-sm text-[color:var(--muted)] md:block">
             {sorted.length} messages
@@ -167,7 +273,7 @@ export default function MemorialWall() {
 
                   <button
                     className="rounded-2xl border border-black/10 bg-white/55 px-3 py-2 text-sm font-semibold text-[color:var(--text)] hover:bg-white/70 dark:border-white/10 dark:bg-white/10 dark:hover:bg-white/15"
-                    onClick={() => flower(e.id)}
+                    onClick={() => void flower(e.id)}
                     aria-label="Send flowers"
                   >
                     + 🌸 {e.flowers}
@@ -177,6 +283,27 @@ export default function MemorialWall() {
                 <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-[color:var(--muted)]">
                   {e.message}
                 </p>
+
+                {e.images && e.images.length > 0 ? (
+                  <div className="mt-4 grid grid-cols-2 gap-2">
+                    {e.images.slice(0, 6).map((img) => (
+                      <a
+                        key={img.url}
+                        href={img.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="overflow-hidden rounded-2xl border border-black/10 dark:border-white/10"
+                      >
+                        <img
+                          src={img.url}
+                          alt="Memory"
+                          className="h-28 w-full object-cover"
+                          loading="lazy"
+                        />
+                      </a>
+                    ))}
+                  </div>
+                ) : null}
 
                 <div className="pointer-events-none mt-5 h-px w-full bg-black/10 dark:bg-white/10" />
 

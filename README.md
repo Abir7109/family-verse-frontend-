@@ -2,6 +2,8 @@ This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-
 
 ## Getting Started
 
+### Frontend (Next.js)
+
 First, run the development server:
 
 ```bash
@@ -15,6 +17,32 @@ bun dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+
+### Backend (Render + MongoDB + Cloudinary)
+
+A simple Express API lives in `backend/`.
+
+Run locally:
+
+```bash
+npm install --prefix backend
+$env:MONGODB_URI="<your mongodb uri>"
+$env:FRONTEND_ORIGIN="http://localhost:3000"
+$env:CLOUDINARY_CLOUD_NAME="<name>"
+$env:CLOUDINARY_API_KEY="<key>"
+$env:CLOUDINARY_API_SECRET="<secret>"
+npm run --prefix backend dev
+```
+
+The backend exposes:
+- `GET /health`
+- `GET /api/wall?limit=20`
+- `POST /api/wall`
+- `POST /api/wall/:id/flower`
+- `POST /api/uploads/wall-image` (multipart form-data with `file`)
+
+Frontend configuration:
+- Set `NEXT_PUBLIC_API_BASE_URL` to your Render backend URL to enable storing wall posts in MongoDB and uploading images via Cloudinary.
 
 You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
 

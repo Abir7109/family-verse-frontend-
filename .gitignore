@@ -20,6 +20,11 @@
 # production
 /build
 
+# backend (monorepo)
+/backend/node_modules
+/backend/dist
+/backend/.env
+
 # misc
 .DS_Store
 *.pem
